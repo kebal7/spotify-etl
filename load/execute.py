@@ -9,13 +9,13 @@ def create_spark_session():
             .appName("SpotifyDataLoad") \
             .getOrCreate()
 
-def create_postgres_tables():
+def create_postgres_tables(pg_un, pg_pw):
     conn = None
     try:
         conn = psycopg2.connect(
                 dbname="postgres",
-                user="postgres",
-                password="postgres",
+                user=pg_un,
+                password=pg_pw,
                 host="localhost",
                 port="5432"
         )
@@ -84,11 +84,11 @@ def create_postgres_tables():
         if conn:
             conn.close()
 
-def load_to_postgres(spark, input_dir):
+def load_to_postgres(spark, input_dir, pg_un, pg_pw):
     jdbc_url = "jdbc:postgresql://localhost:5432/postgres"
     connection_properties = {
-            "user": "postgres",
-            "password": "postgres",
+            "user": pg_un,
+            "password": pg_pw,
             "driver": "org.postgresql.Driver"
     }
 
@@ -118,13 +118,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
     input_dir = sys.argv[1]
+    pg_un = sys.argv[2]
+    pg_pw = sys.argv[3]
 
     if not os.path.exists(input_dir):
         print(f"Error: Input directory {input_dir} does not exist")
         sys.exit(1)
 
     spark = create_spark_session()
-    create_postgres_tables()
-    load_to_postgres(spark, input_dir)
+    create_postgres_tables(pg_un, pg_pw)
+    load_to_postgres(spark, input_dir, pg_un, pg_pw)
 
     print("Load stage completed")
