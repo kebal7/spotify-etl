@@ -3,8 +3,12 @@ import os
 import psycopg2
 from psycopg2 import sql
 from pyspark.sql import SparkSession
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utility.utility import setup_logging, format_time
+import time
 
-def create_spark_session():
+def create_spark_session(logger):
+    logger.debug("Initializing Spark Session with default parameters") 
     return SparkSession.builder \
             .appName("SpotifyDataLoad") \
             .getOrCreate()
@@ -20,6 +24,7 @@ def create_postgres_tables(pg_un, pg_pw):
                 port="5432"
         )
         cursor = conn.cursor()
+        logger.debug("Successfully connected to postgres database")
 
         create_table_queries = [
                 """
@@ -74,11 +79,12 @@ def create_postgres_tables(pg_un, pg_pw):
         for query in create_table_queries:
             cursor.execute(query)
         conn.commit()
-        print("PostgreSQL tables created successfully")
+        logger.info("PostgreSQL tables created successfully")
 
     except Exception as e:
-        print(f"Error creating tables: {e}")
+        logger.warning(f"Error creating tables: {e}")
     finally:
+        logger.debug("Closing connection and cursor to postgres db")
         if cursor:
             cursor.close()
         if conn:
@@ -107,14 +113,17 @@ def load_to_postgres(spark, input_dir, pg_un, pg_pw):
             df.write \
                     .mode(mode) \
                     .jdbc(url=jdbc_url, table=table_name, properties=connection_properties)
-            print(f"Loaded {table_name} to PostgreSQL")
+            logger.info(f"Loaded {table_name} to PostgreSQL")
         except Exception as e:
-            print(f"Error loading {table_name}: {e}")
+            logger.warning(f"Error loading {table_name}: {e}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python load/execute.py <input_dir>")
+
+    logger = setup_logging("load.log")
+
+    if len(sys.argv) != 4:
+        logger.error("Usage: python load/execute.py <input_dir> <pg_un> <pg_pw>")
         sys.exit(1)
 
     input_dir = sys.argv[1]
@@ -122,11 +131,26 @@ if __name__ == "__main__":
     pg_pw = sys.argv[3]
 
     if not os.path.exists(input_dir):
-        print(f"Error: Input directory {input_dir} does not exist")
+        logger.error(f"Error: Input directory {input_dir} does not exist")
         sys.exit(1)
+    
+    logger.info("Load stage started")
+    start = time.time()
 
-    spark = create_spark_session()
+    spark = create_spark_session(logger)
     create_postgres_tables(pg_un, pg_pw)
     load_to_postgres(spark, input_dir, pg_un, pg_pw)
+    
+    end = time.time()
+    logger.info("Load stage completed")
+    logger.info(f"Total time taken {format_time(end-start)}")
 
-    print("Load stage completed")
+
+
+
+
+
+
+
+
+
